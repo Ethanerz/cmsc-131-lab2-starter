@@ -72,9 +72,47 @@ registers you preserve and why.
 
 ### Solution architecture
 
-A stack frame diagram for one recursive call of `qsort_asm`, showing where
-the arguments, the return address, saved `ebp`, and the saved registers
-sit. Why `sum_range_asm` is reentrant.
+#### Sort (`sort.asm`)
+
+`qsort_asm(arr, n)` is the only sort routine C calls. It returns at once
+when n is 0 or 1. Otherwise it calls `qsort_inner(arr, 0, n - 1)` and
+removes the three arguments with `add esp, 12`.
+
+`qsort_inner` and `partition` are internal, but they follow the same
+rules as cdecl: arguments start at `[ebp+8]`, the result comes back in
+`eax`, and `ebx`, `esi` and `edi` are restored before returning. Using
+one convention for all three routines means there is only one stack
+layout to read.
+
+`qsort_inner` keeps `arr` in `esi`, `lo` in `ebx` and `hi` in `edi`.
+`partition` returns the pivot index `p` in `eax`, which the next call
+is free to overwrite, so `p` is pushed before the first recursive call
+and popped after it.
+
+Frame of one `qsort_inner` call while its first recursive call runs:
+
+```
+[ebp+16]  hi
+[ebp+12]  lo
+[ebp+8]   arr
+[ebp+4]   return address
+[ebp]     saved ebp          (enter 0,0)
+[ebp-4]   caller's ebx
+[ebp-8]   caller's esi
+[ebp-12]  caller's edi
+[ebp-16]  p                  <- esp
+          the next call's arr, lo, hi are pushed below this
+```
+
+The manual requires the sort to be recursive, and the algorithm needs
+it: every call has its own `lo`, `hi` and `p`. Each call gets a fresh
+frame, so the outer call's values are still in place when the inner
+call returns.
+
+The library is split into `sort.asm`, `search.asm` and `util.asm`.
+NASM assembles each into its own object file, and the Makefile links
+the three with `bench.c`. That meets the multi-module requirement, and
+each owner works in a separate file.
 
 ### Measurements
 
@@ -110,9 +148,9 @@ share one. The commit history must agree with this table.
 
 | Subsystem | Owner |
 |---|---|
-| Sorting (`qsort_asm` and its partition) | |
-| Searching (`bsearch_asm`, `gcd_asm`) | |
-| Convention and measurement (`sum_range_asm`, the benchmarks) | |
+| Sorting (`qsort_asm` and its partition) | Lunele Iven Moscoso |
+| Searching (`bsearch_asm`, `gcd_asm`) | Ethan Gapulan |
+| Convention and measurement (`sum_range_asm`, the benchmarks) | Marc Raven Sian |
 
 ## Quirks and Issues
 
