@@ -59,17 +59,85 @@ segment .text
         global  _qsort_asm
 _qsort_asm:
         enter   0,0
-        pusha
+        mov     ecx, [ebp+12]           ; n
+        cmp     ecx, 1
+        jle     .done                   ; signed: n <= 1 is already sorted (covers n = 0)
+        dec     ecx                     ; hi = n - 1
+        push    ecx                     ; hi
+        push    dword 0                 ; lo
+        push    dword [ebp+8]           ; arr
+        call    qsort_inner
+        add     esp, 12                 ; caller cleans its 3 arguments
+.done:  leave
+        ret
 
-        ;
-        ; TODO: sort.
-        ;
-        ; Remember the array elements are four bytes, so index with a *4
-        ; scale. The first thing to handle is the empty and single-element
-        ; arrays: n <= 1 sorts itself.
-        ;
+; qsort_inner(arr, lo, hi): same convention as cdecl, args at [ebp+8], [ebp+12], [ebp+16].
+qsort_inner:
+        enter   0,0
+        push    ebx
+        push    esi
+        push    edi
+        mov     esi, [ebp+8]            ; arr
+        mov     ebx, [ebp+12]           ; lo
+        mov     edi, [ebp+16]           ; hi
+        cmp     ebx, edi
+        jge     .ret                    ; signed: lo >= hi, nothing to sort
 
-        popa
-        mov     eax, 0
+        push    edi                     ; hi
+        push    ebx                     ; lo
+        push    esi                     ; arr
+        call    partition               ; eax = p
+        add     esp, 12
+        
+        push    eax                     ; keep p across the first call (eax is caller-saved)
+        lea     ecx, [eax-1]
+        push    ecx                     ; hi = p - 1
+        push    ebx                     ; lo
+        push    esi                     ; arr
+        call    qsort_inner
+        add     esp, 12
+        pop     eax                     ; p
+        inc     eax
+        push    edi                     ; hi
+        push    eax                     ; lo = p + 1
+        push    esi                     ; arr
+        call    qsort_inner
+        add     esp, 12
+
+.ret:   pop     edi
+        pop     esi
+        pop     ebx
+        leave
+        ret
+; partition(arr, lo, hi) -> eax = final pivot index. Same convention as cdecl.
+partition:
+        enter   0,0
+        push    ebx
+        push    esi
+        push    edi
+        mov     esi, [ebp+8]            ; arr
+        mov     ecx, [ebp+12]           ; j = lo
+        mov     edi, [ebp+16]           ; hi
+        lea     ebx, [ecx-1]            ; i = lo - 1
+.loop:  cmp     ecx, edi
+        jge     .last
+        mov     eax, [esi+ecx*4]        ; arr[j]
+        cmp     eax, [esi+edi*4]        ; pivot = arr[hi]; the loop never moves it
+        jg      .next                   ; signed: negatives sort correctly
+        inc     ebx
+        mov     edx, [esi+ebx*4]        ; swap arr[i], arr[j]
+        mov     [esi+ebx*4], eax
+        mov     [esi+ecx*4], edx
+.next:  inc     ecx
+        jmp     .loop
+.last:  inc     ebx                     ; p = i + 1
+        mov     eax, [esi+ebx*4]        ; swap arr[p], arr[hi]
+        mov     edx, [esi+edi*4]
+        mov     [esi+ebx*4], edx
+        mov     [esi+edi*4], eax
+        mov     eax, ebx                ; return p
+        pop     edi
+        pop     esi
+        pop     ebx
         leave
         ret
