@@ -83,9 +83,45 @@ qsort_inner:
         cmp     ebx, edi
         jge     .ret                    ; signed: lo >= hi, nothing to sort
 
-        ; (sprint 2: partition goes here)
+        push    edi                     ; hi
+        push    ebx                     ; lo
+        push    esi                     ; arr
+        call    partition               ; eax = p
+        add     esp, 12
 
 .ret:   pop     edi
+        pop     esi
+        pop     ebx
+        leave
+        ret
+; partition(arr, lo, hi) -> eax = final pivot index. Same convention as cdecl.
+partition:
+        enter   0,0
+        push    ebx
+        push    esi
+        push    edi
+        mov     esi, [ebp+8]            ; arr
+        mov     ecx, [ebp+12]           ; j = lo
+        mov     edi, [ebp+16]           ; hi
+        lea     ebx, [ecx-1]            ; i = lo - 1
+.loop:  cmp     ecx, edi
+        jge     .last
+        mov     eax, [esi+ecx*4]        ; arr[j]
+        cmp     eax, [esi+edi*4]        ; pivot = arr[hi]; the loop never moves it
+        jg      .next                   ; signed: negatives sort correctly
+        inc     ebx
+        mov     edx, [esi+ebx*4]        ; swap arr[i], arr[j]
+        mov     [esi+ebx*4], eax
+        mov     [esi+ecx*4], edx
+.next:  inc     ecx
+        jmp     .loop
+.last:  inc     ebx                     ; p = i + 1
+        mov     eax, [esi+ebx*4]        ; swap arr[p], arr[hi]
+        mov     edx, [esi+edi*4]
+        mov     [esi+ebx*4], edx
+        mov     [esi+edi*4], eax
+        mov     eax, ebx                ; return p
+        pop     edi
         pop     esi
         pop     ebx
         leave
