@@ -59,17 +59,34 @@ segment .text
         global  _qsort_asm
 _qsort_asm:
         enter   0,0
-        pusha
+        mov     ecx, [ebp+12]           ; n
+        cmp     ecx, 1
+        jle     .done                   ; signed: n <= 1 is already sorted (covers n = 0)
+        dec     ecx                     ; hi = n - 1
+        push    ecx                     ; hi
+        push    dword 0                 ; lo
+        push    dword [ebp+8]           ; arr
+        call    qsort_inner
+        add     esp, 12                 ; caller cleans its 3 arguments
+.done:  leave
+        ret
 
-        ;
-        ; TODO: sort.
-        ;
-        ; Remember the array elements are four bytes, so index with a *4
-        ; scale. The first thing to handle is the empty and single-element
-        ; arrays: n <= 1 sorts itself.
-        ;
+; qsort_inner(arr, lo, hi): same convention as cdecl, args at [ebp+8], [ebp+12], [ebp+16].
+qsort_inner:
+        enter   0,0
+        push    ebx
+        push    esi
+        push    edi
+        mov     esi, [ebp+8]            ; arr
+        mov     ebx, [ebp+12]           ; lo
+        mov     edi, [ebp+16]           ; hi
+        cmp     ebx, edi
+        jge     .ret                    ; signed: lo >= hi, nothing to sort
 
-        popa
-        mov     eax, 0
+        ; (sprint 2: partition goes here)
+
+.ret:   pop     edi
+        pop     esi
+        pop     ebx
         leave
         ret
