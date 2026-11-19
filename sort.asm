@@ -88,6 +88,21 @@ qsort_inner:
         push    esi                     ; arr
         call    partition               ; eax = p
         add     esp, 12
+        
+        push    eax                     ; keep p across the first call (eax is caller-saved)
+        lea     ecx, [eax-1]
+        push    ecx                     ; hi = p - 1
+        push    ebx                     ; lo
+        push    esi                     ; arr
+        call    qsort_inner
+        add     esp, 12
+        pop     eax                     ; p
+        inc     eax
+        push    edi                     ; hi
+        push    eax                     ; lo = p + 1
+        push    esi                     ; arr
+        call    qsort_inner
+        add     esp, 12
 
 .ret:   pop     edi
         pop     esi
